@@ -1,12 +1,8 @@
 #include <cmath>
 #include <iostream>
 #include "ShiftRegister.h"
-#include "hlslib/xilinx/OpenCL.h"
+#include "hlslib/xilinx/XRT.h"
 
-// Convert from C to C++
-constexpr auto kUsage = "Usage: ./RunShiftRegister <[emulator/hardware]>\n";
-
-// Reference implementation for checking correctness
 void Reference(std::vector<Data_t> &domain) {
   std::vector<Data_t> buffer(domain);
   for (int t = 0; t < T; ++t) {
@@ -22,27 +18,19 @@ void Reference(std::vector<Data_t> &domain) {
 }
 
 int main(int argc, char **argv) {
-  // Handle input arguments
   if (argc != 2) {
-    std::cout << kUsage;
+    std::cerr << "Usage: ./RunShiftRegister [sw_emu|hw_emu|hw]\n";
     return 1;
   }
-  bool emulator = false;
-  std::string mode_str(argv[1]);
-  std::string kernel_path;
-  if (mode_str == "emulator") {
-    emulator = true;
-    kernel_path = "ShiftRegister_hw_emu.xclbin";
-  } else if (mode_str == "hardware") {
-    kernel_path = "ShiftRegister_hw.xclbin";
-    emulator = false;
-  } else {
-    std::cout << kUsage;
+  std::string mode(argv[1]);
+  if (mode != "sw_emu" && mode != "hw_emu" && mode != "hw") {
+    std::cerr << "Unrecognized mode: " << mode << std::endl;
     return 2;
   }
+  std::string kernel_path = "ShiftRegister_" + mode + ".xclbin";
+  std::cout << "Running " << mode << " (" << kernel_path << ")" << std::endl;
 
   std::cout << "Initializing host memory...\n" << std::flush;
-  // Set center to 0
   std::vector<Data_t> host_buffer(W * H, 0);
   // Set boundaries to 1
   for (int i = 0; i < W; ++i) {
@@ -55,8 +43,7 @@ int main(int argc, char **argv) {
   }
   std::vector<Data_t> reference(host_buffer);
 
-  // Create OpenCL kernels
-  std::cout << "Creating OpenCL context...\n" << std::flush;
+  std::cout << "Creating context...\n" << std::flush;
   hlslib::ocl::Context context;
   std::cout << "Allocating device memory...\n" << std::flush;
   auto device_buffer =

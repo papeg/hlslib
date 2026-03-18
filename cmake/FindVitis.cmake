@@ -443,7 +443,7 @@ function(add_vitis_program
   # Keyword arguments
   cmake_parse_arguments(
       PROGRAM
-      ""
+      "NO_SW_EMU"
       "CLOCK;CONFIG;SAVE_TEMPS;DEBUGGING;PROFILING"
       "KERNELS;BUILD_FLAGS;LINK_FLAGS;CONNECTIVITY;DEPENDS"
       ${ARGN})
@@ -711,9 +711,8 @@ exit")
             ${PROGRAM_LINK_FLAGS}
             ${PROGRAM_XO_FILES_SW_EMU}
             --output ${PROGRAM_XCLBIN_SW_EMU}
-    # Back up the binary in case it accidentally gets cleaned when outdated
-    POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-                       ${PROGRAM_XCLBIN_SW_EMU} ${PROGRAM_XCLBIN_SW_EMU}.bak
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${PROGRAM_XCLBIN_SW_EMU} ${PROGRAM_XCLBIN_SW_EMU}.bak
     DEPENDS ${PROGRAM_XO_FILES_SW_EMU}
             ${PROGRAM_PLATFORM}_emconfig
             ${PROGRAM_DEPENDS})
@@ -732,9 +731,8 @@ exit")
             ${PROGRAM_LINK_FLAGS}
             ${PROGRAM_XO_FILES_HW_EMU}
             --output ${PROGRAM_XCLBIN_HW_EMU}
-    # Back up the binary in case it accidentally gets cleaned when outdated
-    POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-                       ${PROGRAM_XCLBIN_HW_EMU} ${PROGRAM_XCLBIN_HW_EMU}.bak
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${PROGRAM_XCLBIN_HW_EMU} ${PROGRAM_XCLBIN_HW_EMU}.bak
     DEPENDS ${PROGRAM_XO_FILES_HW_EMU}
             ${PROGRAM_PLATFORM}_emconfig
             ${PROGRAM_DEPENDS})
@@ -753,20 +751,21 @@ exit")
             ${PROGRAM_LINK_FLAGS}
             ${PROGRAM_XO_FILES_HW}
             --output ${PROGRAM_XCLBIN_HW}
-    # Back up the binary in case it accidentally gets cleaned when outdated
-    POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-                       ${PROGRAM_XCLBIN_HW} ${PROGRAM_XCLBIN_HW}.bak
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${PROGRAM_XCLBIN_HW} ${PROGRAM_XCLBIN_HW}.bak
     DEPENDS ${PROGRAM_XO_FILES_HW}
             ${PROGRAM_DEPENDS})
   add_custom_target(link_${PROGRAM_TARGET}_hw DEPENDS ${PROGRAM_XCLBIN_HW})
   add_custom_target(${PROGRAM_TARGET}_hw DEPENDS link_${PROGRAM_TARGET}_hw)
 
   # Shorthand to compile kernels, so user can just run "make hw" or "make hw_emu"
-  if(NOT TARGET link_sw_emu)
-    add_custom_target(link_sw_emu COMMENT "Linking software emulation targets."
-                      DEPENDS link_${PROGRAM_TARGET}_sw_emu)
-  else()
-    add_dependencies(link_sw_emu link_${PROGRAM_TARGET}_sw_emu)
+  if(NOT PROGRAM_NO_SW_EMU)
+    if(NOT TARGET link_sw_emu)
+      add_custom_target(link_sw_emu COMMENT "Linking software emulation targets."
+                        DEPENDS link_${PROGRAM_TARGET}_sw_emu)
+    else()
+      add_dependencies(link_sw_emu link_${PROGRAM_TARGET}_sw_emu)
+    endif()
   endif()
   if(NOT TARGET link_hw_emu)
     add_custom_target(link_hw_emu COMMENT "Linking hardware emulation targets."
@@ -780,11 +779,13 @@ exit")
   else()
     add_dependencies(link_hw link_${PROGRAM_TARGET}_hw)
   endif()
-  if(NOT TARGET sw_emu)
-    add_custom_target(sw_emu COMMENT "Building software emulation targets."
-                      DEPENDS link_sw_emu)
-  else()
-    add_dependencies(sw_emu ${PROGRAM_TARGET}_sw_emu)
+  if(NOT PROGRAM_NO_SW_EMU)
+    if(NOT TARGET sw_emu)
+      add_custom_target(sw_emu COMMENT "Building software emulation targets."
+                        DEPENDS link_sw_emu)
+    else()
+      add_dependencies(sw_emu ${PROGRAM_TARGET}_sw_emu)
+    endif()
   endif()
   if(NOT TARGET hw_emu)
     add_custom_target(hw_emu COMMENT "Building hardware emulation targets."

@@ -2,7 +2,7 @@
 
 #include "MultipleKernels.h"
 #include "catch.hpp"
-#include "hlslib/xilinx/OpenCL.h"
+#include "hlslib/xilinx/XRT.h"
 
 constexpr int kTestSize = 16;
 

@@ -1,7 +1,7 @@
 /// @author    Jannis Widmer (widmerja@ethz.ch)
 /// @copyright This software is copyrighted under the BSD 3-Clause License.
 
-#include "../../include/hlslib/xilinx/OpenCL.h"
+#include "hlslib/xilinx/XRT.h"
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
@@ -39,28 +39,21 @@ bool CheckBlockHasValue(const std::array<size_t, 3> blockOffsetSource,
 }
 
 int main(int argc, char **argv) {
-  std::cout << "Initializing OpenCL context..." << std::endl;
-  hlslib::ocl::Context context; // Whatever device was loaded needs support for HBM, e.g. alveo u280
-  std::cout << "Done." << std::endl;
-
-  // Handle input arguments
-  std::string kUsage = "./RunHBMKernel [emulation|hardware]";
   if (argc != 2) {
-    std::cout << kUsage << std::endl;
+    std::cerr << "Usage: ./RunHBMandBlockCopy [sw_emu|hw_emu|hw]\n";
     return 1;
   }
-  std::string mode_str(argv[1]);
-  std::string kernel_path;
-  if (mode_str == "emulation") {
-    kernel_path = "HBMandBlockCopy_hw_emu.xclbin";
-  } else if (mode_str == "hardware") {
-    kernel_path = "HBMandBlockCopy_hw.xclbin";
-  } else {
-    std::cout << kUsage << std::endl;
+  std::string mode(argv[1]);
+  if (mode != "sw_emu" && mode != "hw_emu" && mode != "hw") {
+    std::cerr << "Unrecognized mode: " << mode << std::endl;
     return 2;
   }
+  std::string kernel_path = "HBMandBlockCopy_" + mode + ".xclbin";
+  std::cout << "Running " << mode << " (" << kernel_path << ")" << std::endl;
 
-  std::cout << std::endl << "Loading Kernel" << std::endl;
+  hlslib::ocl::Context context;
+
+  std::cout << "Loading Kernel" << std::endl;
   auto program = context.MakeProgram(kernel_path);
 
   std::cout << "Done" << std::endl

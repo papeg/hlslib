@@ -1,7 +1,7 @@
 /// @author    Jannis Widmer (widmerja@ethz.ch)
 /// @copyright This software is copyrighted under the BSD 3-Clause License.
 
-#include "../../include/hlslib/xilinx/OpenCL.h"
+#include "hlslib/xilinx/XRT.h"
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
@@ -9,27 +9,19 @@
 constexpr int kDataSize = 1024;
 
 int main(int argc, char **argv) {
-  std::cout << "Initializing OpenCL context..." << std::endl;
-  //"xilinx_u280_xdma_201920_3"
-  hlslib::ocl::Context context;
-  std::cout << "Done." << std::endl;
-
-  // Handle input arguments
-  std::string kUsage = "./RunDDRExplicit [emulation|hardware]";
   if (argc != 2) {
-    std::cout << kUsage;
+    std::cerr << "Usage: ./RunDDRExplicit [sw_emu|hw_emu|hw]\n";
     return 1;
   }
-  std::string mode_str(argv[1]);
-  std::string kernel_path;
-  if (mode_str == "emulation") {
-    kernel_path = "DDRExplicit_hw_emu.xclbin";
-  } else if (mode_str == "hardware") {
-    kernel_path = "DDRExplicit_hw.xclbin";
-  } else {
-    std::cout << kUsage;
+  std::string mode(argv[1]);
+  if (mode != "sw_emu" && mode != "hw_emu" && mode != "hw") {
+    std::cerr << "Unrecognized mode: " << mode << std::endl;
     return 2;
   }
+  std::string kernel_path = "DDRMapping_" + mode + ".xclbin";
+  std::cout << "Running " << mode << " (" << kernel_path << ")" << std::endl;
+
+  hlslib::ocl::Context context;
 
   std::cout << std::endl << "Loading Kernel" << std::endl;
   auto program = context.MakeProgram(kernel_path);

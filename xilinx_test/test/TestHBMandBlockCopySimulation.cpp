@@ -3,7 +3,7 @@
 
 #define HLSLIB_SIMULATE_OPENCL
 
-#include "../../include/hlslib/xilinx/OpenCL.h"
+#include "hlslib/xilinx/XRT.h"
 #include <iostream>
 #include <algorithm>
 #include "catch.hpp"

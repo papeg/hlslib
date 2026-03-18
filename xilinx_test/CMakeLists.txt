@@ -30,29 +30,32 @@ add_test(TestHBMandBlockCopySimulation TestHBMandBlockCopySimulation)
 function(add_hls_test KERNEL_NAME)
   cmake_parse_arguments(
       KERNEL
-      ""
+      "NO_SW_EMU"
       "CONFIG"
       "HLS_FLAGS"
       ${ARGN})
-  # Abuse add_vitis_kernel to generate synthesis target, even if not all of the
-  # tests would actually be valid OpenCL kernels
   add_vitis_kernel(${KERNEL_NAME}
                    FILES kernels/${KERNEL_NAME}.cpp
                    INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
                                 ${CMAKE_SOURCE_DIR}/include
                    HLS_FLAGS "${KERNEL_HLS_FLAGS}")
-  add_vitis_program(${KERNEL_NAME} ${HLSLIB_DSA_NAME}
-                    CONFIG "${KERNEL_CONFIG}")
+  if(KERNEL_NO_SW_EMU)
+    add_vitis_program(${KERNEL_NAME} ${HLSLIB_DSA_NAME}
+                      CONFIG "${KERNEL_CONFIG}" NO_SW_EMU)
+  else()
+    add_vitis_program(${KERNEL_NAME} ${HLSLIB_DSA_NAME}
+                      CONFIG "${KERNEL_CONFIG}")
+  endif()
   add_test(NAME Test${KERNEL_NAME}Synthesis COMMAND ${CMAKE_COMMAND}
-           --build ${CMAKE_CURRENT_BINARY_DIR} --target synthesize_${KERNEL_NAME}) 
+           --build ${CMAKE_CURRENT_BINARY_DIR} --target synthesize_${KERNEL_NAME})
 endfunction()
 
 add_hls_test("MultiStageAdd")
-add_hls_test("Reduce")
+add_hls_test("Reduce" NO_SW_EMU)
 add_hls_test("AccumulateFloat" HLS_FLAGS "-DHLSLIB_COMPILE_ACCUMULATE_FLOAT")
 add_hls_test("AccumulateInt" HLS_FLAGS "-DHLSLIB_COMPILE_ACCUMULATE_INT")
 add_hls_test("ShiftRegister")
-add_hls_test("StreamAPI")
+add_hls_test("StreamAPI" NO_SW_EMU)
 add_hls_test("Subflow")
 add_hls_test("HBMandBlockCopy" CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/configs/hbmkernel.cfg)
 add_hls_test("TightPacking")
@@ -81,7 +84,8 @@ add_vitis_kernel(SecondKernel
                               ${CMAKE_SOURCE_DIR}/include)
 add_vitis_program(MultipleKernels ${HLSLIB_DSA_NAME}
                   KERNELS FirstKernel SecondKernel
-                  CONNECTIVITY "FirstKernel_1.stream:SecondKernel_1.stream")
+                  CONNECTIVITY "FirstKernel_1.stream:SecondKernel_1.stream"
+                  NO_SW_EMU)
 
 # Test kernels in software
 find_package(Threads)
@@ -113,7 +117,7 @@ if(Threads_FOUND)
   target_link_libraries(TestMultipleKernelsHardwareEmulation ${Vitis_LIBRARIES} catch ${CMAKE_THREAD_LIBS_INIT})
   add_test(NAME TestMultipleKernelsHardwareEmulation 
            COMMAND ${CMAKE_COMMAND} -E env
-           XCL_EMULATION_MODE="hw_emu"
+           XCL_EMULATION_MODE=hw_emu
            ${CMAKE_CURRENT_BINARY_DIR}/TestMultipleKernelsHardwareEmulation)
   add_executable(TestMultipleKernelsSimulation test/TestMultipleKernels.cpp kernels/MultipleKernels.cpp)
   target_compile_options(TestMultipleKernelsSimulation PRIVATE -DHLSLIB_SIMULATE_OPENCL) 
@@ -122,6 +126,46 @@ if(Threads_FOUND)
   add_executable(TestLink test/TestLink.cpp)
   target_link_libraries(TestLink ${CMAKE_THREAD_LIBS_INIT} catch)
   add_test(TestLink TestLink)
+
+  # sw_emu host tests (XRT native API)
+  find_library(XRT_COREUTIL xrt_coreutil
+               PATHS ${VITIS_RUNTIME_DIR}/lib
+               NO_DEFAULT_PATH)
+  find_library(UUID_LIB uuid)
+  set(XRT_LIBS ${XRT_COREUTIL} ${UUID_LIB})
+
+  add_executable(RunMultiStageAdd host/RunMultiStageAdd.cpp)
+  target_link_libraries(RunMultiStageAdd ${XRT_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+  add_dependencies(RunMultiStageAdd MultiStageAdd_sw_emu)
+  add_test(NAME TestMultiStageAddSwEmu
+           COMMAND ${CMAKE_COMMAND} -E env
+           XCL_EMULATION_MODE=sw_emu
+           ${CMAKE_CURRENT_BINARY_DIR}/RunMultiStageAdd sw_emu)
+
+  add_executable(RunShiftRegister host/RunShiftRegister.cpp)
+  target_link_libraries(RunShiftRegister ${XRT_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+  add_dependencies(RunShiftRegister ShiftRegister_sw_emu)
+  add_test(NAME TestShiftRegisterSwEmu
+           COMMAND ${CMAKE_COMMAND} -E env
+           XCL_EMULATION_MODE=sw_emu
+           ${CMAKE_CURRENT_BINARY_DIR}/RunShiftRegister sw_emu)
+
+  add_executable(RunDDRExplicit host/RunDDRExplicit.cpp)
+  target_link_libraries(RunDDRExplicit ${XRT_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+  add_dependencies(RunDDRExplicit DDRMapping_sw_emu)
+  add_test(NAME TestDDRExplicitSwEmu
+           COMMAND ${CMAKE_COMMAND} -E env
+           XCL_EMULATION_MODE=sw_emu
+           ${CMAKE_CURRENT_BINARY_DIR}/RunDDRExplicit sw_emu)
+
+  add_executable(RunHBMandBlockCopy host/RunHBMandBlockCopy.cpp)
+  target_link_libraries(RunHBMandBlockCopy ${XRT_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+  add_dependencies(RunHBMandBlockCopy HBMandBlockCopy_sw_emu)
+  add_test(NAME TestHBMandBlockCopySwEmu
+           COMMAND ${CMAKE_COMMAND} -E env
+           XCL_EMULATION_MODE=sw_emu
+           ${CMAKE_CURRENT_BINARY_DIR}/RunHBMandBlockCopy sw_emu)
+
 else()
   message(WARNING "Threads not found. Disabling multi-PE kernel tests.")
 endif()
